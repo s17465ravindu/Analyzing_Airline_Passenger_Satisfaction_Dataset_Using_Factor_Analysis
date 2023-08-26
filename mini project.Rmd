@@ -1,0 +1,215 @@
+---
+title: "Mini project"
+author: "S17465"
+date: '2023-05-27'
+output:
+  word_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## import Dataset
+
+```{r}
+library("psych")
+library("corrplot")
+library("psych")
+library("ggplot2")
+library("stats")
+```
+
+```{r}
+df = read.csv('E:/Uni Docs/4th year/1st Sem/ST405/Mini Project/Invistico_Airline.csv',
+              header = T)
+```
+
+```{r}
+describe(df)
+```
+
+```{r}
+colnames(df)
+```
+
+### Data cleaning
+
+```{r}
+df <- na.omit(df)
+```
+
+### Extract Survey Result
+
+```{r}
+clean_df <- df[8:21]
+
+```
+
+```{r}
+clean_df
+```
+
+```{r}
+library(corrplot)
+```
+
+```{r}
+cor_matrix <- cor(clean_df)
+```
+
+```{r}
+corrplot(cor_matrix, method = "circle")
+```
+
+### Calculate Eigan Values and Eigan Vectors
+
+```{r}
+df.eigen <- eigen(cor_matrix)
+df.eigen
+```
+
+```{r}
+df.eigen$vectors
+```
+
+### Kaiser-Meyer-Olkin factor adequacy test
+
+```{r}
+KMO(cor_matrix)
+```
+
+The total KMO is `0.79`, indicating that, based on this test, we can probably conduct a factor analysis.
+
+## Bartlett's Test of Sphericity
+
+```{r}
+cortest.bartlett(cor_matrix, n = 384)
+
+
+
+```
+
+### No of factors to extract
+
+```{r}
+fafitfree <- fa(clean_df,nfactors = ncol(X), rotate = "none")
+n_factors <- length(fafitfree$e.values)
+scree     <- data.frame(
+  Factor_n =  as.factor(1:n_factors), 
+  Eigenvalue = fafitfree$e.values)
+
+ggplot(scree, aes(x = Factor_n, y = Eigenvalue, group = 1)) + 
+  geom_point() + geom_line() +
+  xlab("Number of factors") +
+  ylab("Initial eigenvalue") +
+  labs( title = "Scree Plot", 
+        subtitle = "(Based on the unreduced correlation matrix)")
+```
+
+```{r}
+parallel <- fa.parallel(cor_matrix ,n.obs=129487)
+```
+
+### 
+
+**Conducting the Factor Analysis**
+
+```{r}
+fa_2 <- principal(clean_df,nfactors = 5,rotate = "varimax", covar = FALSE)
+fa_2$values
+```
+
+```{r}
+fa_2$loadings
+```
+
+```{r}
+fa_2$uniquenesses
+```
+
+### Comfemetry Factor analysis
+
+```{r}
+library(lavaan)
+```
+
+```{r}
+# Define the CFA model
+cfa_model <- '
+  # Factor 1
+  F1 =~ Online.boarding + Ease.of.Online.booking  + Online.support + Inflight.wifi.service 
+
+  # Factor 2
+  F3 =~ Cleanliness  + Baggage.handling + On.board.service + Leg.room.service
+
+  # Factor 3
+  F2 =~ Gate.location  + Food.and.drink  + Departure.Arrival.time.convenient 
+  
+  # Factor 4
+  F4 =~ Inflight.entertainment + Seat.comfort
+  
+  # Factor 5
+  F5 =~ Checkin.service
+'
+
+```
+
+```{r}
+# Fit the CFA model
+fit <- cfa(cfa_model, data = clean_df)
+```
+
+```{r}
+# Check the model fit
+summary(fit, fit.measures = TRUE)
+
+```
+
+```{r}
+# Check the standardized loadings and thresholds
+inspect(fit, what = "std")
+```
+
+```{r}
+mod_indices <- modificationIndices(fit)
+head(mod_indices[order(-mod_indices$mi),], n = 20) # Display top 10 modification indices
+```
+
+```{r}
+cfa_model_refined <- '
+  # Factor 1
+  F1 =~ Online.boarding + Ease.of.Online.booking + Online.support + Inflight.wifi.service
+
+  # Factor 2
+  F2 =~ Cleanliness + Baggage.handling + On.board.service + Leg.room.service
+
+  # Factor 3
+  F3 =~ Gate.location + Food.and.drink + Departure.Arrival.time.convenient
+
+  # Factor 4
+  F4 =~ Inflight.entertainment + Seat.comfort
+
+  # Factor 5
+  F5 =~ Checkin.service
+
+  # Correlate error terms based on modification indices
+  Gate.location ~~ Departure.Arrival.time.convenient
+  Online.support ~~ Inflight.entertainment
+  Gate.location	~~ Inflight.entertainment
+  Food.and.drink	~~	Inflight.entertainment
+  Ease.of.Online.booking	~~	Checkin.service
+  Departure.Arrival.time.convenient	~~	Inflight.entertainment
+  Ease.of.Online.booking	~~	Cleanliness
+  Ease.of.Online.booking	~~	On.board.service
+  
+'
+
+```
+
+```{r}
+cfa_fit_refined <- cfa(cfa_model_refined, data = clean_df)
+summary(cfa_fit_refined, fit.measures = TRUE)
+
+```
